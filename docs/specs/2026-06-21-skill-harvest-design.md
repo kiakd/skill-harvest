@@ -4,7 +4,7 @@
 > เน้นทูตอเรียลสายทักษะ เช่น pixel-art animation (Aseprite), การปั้น 3D ฯลฯ
 
 วันที่: 2026-06-21
-สถานะ: อนุมัติดีไซน์แล้ว (รวมหมวดหมู่ ข้อ 10) — รอวางแผน implement
+สถานะ: อนุมัติดีไซน์แล้ว (หมวดหมู่ ข้อ 10 + รูปแบบการ์ดตามหมวด ข้อ 11) — เฟส 1 ทำเสร็จแล้ว, ข้อ 11 รอ implement
 
 ---
 
@@ -60,7 +60,7 @@ skill-harvest/
   transcribe.py        # faster-whisper → transcript + timestamp
   summarize.py         # เรียก LLM → โครงสร้าง JSON (validate ตาม schema)
   store.py             # เขียน cards/*.json + regenerate cards-data.js
-  config.py            # endpoint, โมเดล, ภาษา, โฟลเดอร์เก็บ, Whisper model size, CATEGORIES (ข้อ 10)
+  config.py            # endpoint, โมเดล, ภาษา, โฟลเดอร์เก็บ, Whisper, CATEGORIES (ข้อ 10), FLASHCARD_CATEGORIES (ข้อ 11)
   templates/
     gallery.html       # หน้าแกลลารี (css/js ในตัว, โหลด cards-data.js)
   cards/               # ผลลัพธ์: <id>.json ต่อคลิป (source of truth)
@@ -107,14 +107,20 @@ skill-harvest/
   "duration_sec": 754,
   "category": "pixel-art",            // หมวดใหญ่ 1 หมวด/การ์ด (id จาก config ข้อ 10)
   "category_source": "ai",           // "ai" = LLM เดา | "manual" = คนระบุผ่าน --category
+  "kind": "tutorial",                // "tutorial" | "flashcards" — เลือกฟอร์แมตตามหมวด (ข้อ 11)
   "tags": ["aseprite", "smear", "animation"],   // tag ย่อย (กรองละเอียดใน gallery)
   "harvested_at": "2026-06-21",
   "transcript_source": "caption" | "whisper",
   "summary": "เทคนิคทำแอนิเมชันโจมตีให้ลื่นด้วย smear frames ...",
   "tools": ["Aseprite", "brush 1px", ...],
-  "steps": [
-    { "text": "ตั้ง keyframe ท่าเริ่ม–ท่าจบก่อน", "t_sec": 42 },
-    { "text": "แทรก smear frame 1–2 เฟรมระหว่างกลาง", "t_sec": 90 }
+  "steps": [   // เฉพาะ kind="tutorial"
+    { "text": "ตั้ง keyframe ท่าเริ่ม–ท่าจบก่อน", "t_sec": 42,
+      "detail": "เปิด timeline ... กดปุ่ม ... ตั้งค่า ... เพราะ ..." },   // คำสอนละเอียด (ข้อ 11.2)
+    { "text": "แทรก smear frame 1–2 เฟรมระหว่างกลาง", "t_sec": 90, "detail": "..." }
+  ],
+  "flashcards": [   // เฉพาะ kind="flashcards" (ข้อ 11.3)
+    { "front": "言葉", "reading": "ことば", "onyomi": "ゲン, ゴン",
+      "kunyomi": "いう, こと", "meaning": "คำพูด, ภาษา", "example": "言葉を覚える — จำคำศัพท์" }
   ],
   "tips": ["อย่าใส่ smear เกิน 2 เฟรม จะดูเบลอ", ...],
   "glossary": [{ "term": "smear frame", "meaning": "..." }],
@@ -124,6 +130,7 @@ skill-harvest/
 
 `t_sec` ใช้ทำลิงก์กระโดดไปนาทีในคลิป (มีเฉพาะเมื่อ transcript มี timestamp)
 
+`kind` กำหนดว่าการ์ดใช้ `steps` (tutorial) หรือ `flashcards` (เรียนภาษา) — รายละเอียดข้อ 11
 `category` / `category_source` — รายละเอียดการกำหนดหมวดอยู่ในข้อ 10
 
 ---
@@ -146,10 +153,10 @@ skill-harvest/
 
 แต่ละโมดูลเทสต์อิสระ:
 - `fetch` / `transcribe` — mock subprocess (yt-dlp/whisper) ตรวจการ parse output
-- `summarize` — ใช้ transcript ตัวอย่างคงที่ + mock LLM client → ตรวจว่า map-reduce + validate schema ถูก; **ตรวจว่า `category` ที่ได้อยู่ใน config เสมอ และหลุด list → fallback `other`**
+- `summarize` — ใช้ transcript ตัวอย่างคงที่ + mock LLM client → ตรวจว่า map-reduce + validate schema ถูก; **ตรวจว่า `category` ที่ได้อยู่ใน config เสมอ และหลุด list → fallback `other`**; **หมวด ∈ FLASHCARD_CATEGORIES → `kind="flashcards"` + มี `flashcards`; หมวดอื่น → `kind="tutorial"` + `steps` มี `detail`**
 - `cli` (หมวด) — `--category <id>` ทับค่า AI + ตั้ง `category_source: "manual"` ถูก; reject id ที่ไม่มีใน config
 - `store` — เทสต์ว่าเขียน `cards/*.json` ถูก และ regenerate `cards-data.js` (`window.CARDS=[...]`) ครบทุกการ์ด
-- `card render` — สโม๊คเทสต์ว่า gallery.html โหลด cards-data.js ได้ (อย่างน้อยตรวจ template มี `<script src>` ชี้ถูก); **ชิปหมวดครบตาม config + กรองหมวด∧tag ร่วมกันถูก**
+- `card render` — สโม๊คเทสต์ว่า gallery.html โหลด cards-data.js ได้ (อย่างน้อยตรวจ template มี `<script src>` ชี้ถูก); **ชิปหมวดครบตาม config + กรองหมวด∧tag ร่วมกันถูก**; **render `kind="flashcards"` เป็นการ์ดพลิก, `kind="tutorial"` เป็น step+detail, การ์ดเก่าไม่มี `kind` ไม่พัง**
 
 ---
 
@@ -187,3 +194,46 @@ CATEGORIES = [
 - ใต้ลงมา: ช่องค้น + ชิป tag ย่อย (เดิม) → ทำงาน **AND** กับหมวดที่เลือก (เช่น หมวด pixel-art + tag "smear")
 - การ์ดแต่ละใบโชว์ป้ายหมวดมุมหนึ่ง
 - หน้าตา/สไตล์ของ gallery มอบให้ Claude ออกแบบเอง — ข้อบังคับคือ: ใช้ดีบนมือถือ (ผู้ใช้หลักอยู่มือถือ) และเปิด `file://` ออฟไลน์ได้ (ข้อมูลฝังใน `cards-data.js` ตามข้อ 5)
+
+---
+
+## 11. รูปแบบการ์ดตามหมวด (Card formats by category)
+
+การ์ดไม่ได้มีทรงเดียว — ปรับ**ฟอร์แมตตามชนิดเนื้อหา** ผ่าน field `kind`:
+
+| `kind` | หมวด | เนื้อหา | เป้าหมาย |
+|---|---|---|---|
+| `tutorial` | pixel-art, 3d, unity, other | `steps` (มี `detail`) | ทำตามได้จริง |
+| `flashcards` | japanese (+ภาษาที่เพิ่มทีหลัง) | `flashcards` | ท่องจำ (active recall) |
+
+### 11.1 เลือกฟอร์แมตยังไง
+- `config.py` เพิ่ม `FLASHCARD_CATEGORIES = {"japanese"}` — เซตของหมวดที่ใช้ flashcard
+- ลำดับใน `summarize.py`:
+  1. **รู้หมวดก่อน**: ถ้ามี `manual_category` ใช้เลย; ถ้าไม่มี → เรียก LLM จัดหมวด (classification สั้น ๆ ครั้งเดียว) → normalize/fallback `other`
+  2. **เลือก prompt ตามหมวด**: ถ้าหมวด ∈ `FLASHCARD_CATEGORIES` → prompt ดึง flashcards (`kind="flashcards"`); ไม่ใช่ → prompt ดึง steps+detail (`kind="tutorial"`)
+- การ์ดจะมี **ฝั่งเดียว**: `tutorial` มี `steps` (ไม่มี `flashcards`), `flashcards` มี `flashcards` (ไม่มี `steps`)
+
+### 11.2 tutorial — `steps[].detail` (สอนละเอียด)
+แต่ละ step เพิ่ม field `detail`: คำอธิบายว่า**ทำยังไงจริง** (เมนู/ปุ่มที่กด, ค่าที่ตั้ง, ลำดับ, เหตุผล)
+- **AI เติมความรู้ทั่วไปของเครื่องมือได้** เพื่อให้คนที่ไม่เคยทำ ทำตามได้จริง แม้คลิปพูดไม่ละเอียด
+- ส่วนที่เป็นภาพล้วนเดาไม่ได้ → ยังตั้ง `visual_gap`
+- gallery: ใต้แต่ละ step มีปุ่ม **▾ อธิบายเพิ่ม** (ค่าเริ่ม=พับ) กดกางอ่าน `detail` — การ์ดยังกวาดตาเร็ว
+
+### 11.3 flashcards — เรียนภาษา (แบบ KIOKU)
+`flashcards[]` แต่ละใบ:
+```jsonc
+{
+  "front": "言葉",            // หน้า: คำ/คันจิ
+  "reading": "ことば",         // furigana — อ่านยังไง
+  "onyomi": "ゲン, ゴン",      // ออนโยมิ (ถ้าเป็นคันจิ; ละได้)
+  "kunyomi": "いう, こと",     // คุนโยมิ (ละได้)
+  "meaning": "คำพูด, ภาษา",   // ความหมายไทย
+  "example": "言葉を覚える — จำคำศัพท์"  // ประโยคตัวอย่าง (ละได้)
+}
+```
+- AI เติม furigana/ออน-คุน/ความหมายไทย/ตัวอย่างได้จากความรู้ของมันเอง (โหมด "เติมความรู้ทั่วไป")
+- gallery: การ์ดเล็ก **พลิกหน้า-หลัง** — หน้า=`front`+`reading`, แตะ→หลัง=ออน/คุน/ความหมาย/ตัวอย่าง (CSS flip, มือถือใช้ได้, `file://` ได้)
+- `front`/`reading`/`meaning` เป็น field บังคับ; `onyomi`/`kunyomi`/`example` ละได้ (คำที่ไม่ใช่คันจิก็ไม่มีออน-คุน)
+
+### 11.4 ความเข้ากันได้ย้อนหลัง
+การ์ดเก่าที่ไม่มี `kind`/`detail`/`flashcards` ต้องไม่พังใน gallery — ถือว่า `kind="tutorial"` โดยปริยาย, step ไม่มี `detail` ก็ไม่แสดงปุ่มกาง
