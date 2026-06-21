@@ -28,6 +28,15 @@ def _extract_json(text):
     return json.loads(candidate)
 
 
+def _render_transcript(transcript):
+    """Render transcript for the LLM, prefixing each line with its timestamp
+    (e.g. "[42s] ...") so the model can fill step `t_sec` for jump links.
+    Falls back to plain text when there are no timestamped segments."""
+    if transcript.segments:
+        return "\n".join(f"[{s.t_sec}s] {s.text}" for s in transcript.segments)
+    return transcript.text
+
+
 def _chunk_text(text, size):
     return [text[i:i + size] for i in range(0, len(text), size)]
 
@@ -59,11 +68,13 @@ def _build_card_prompt(meta, transcript_text, transcript_source):
         '  "summary": "<สรุปสั้นๆ>",\n'
         '  "tags": ["<tag ย่อย>"],\n'
         '  "tools": ["<เครื่องมือ>"],\n'
-        '  "steps": [{"text": "<ขั้นตอน>", "t_sec": <วินาที หรือ ละไว้>}],\n'
+        '  "steps": [{"text": "<ขั้นตอน>", "t_sec": <วินาทีจาก [Ns] ของบรรทัดที่เกี่ยว ใส่เป็นตัวเลข>}],\n'
         '  "tips": ["<ทริค>"],\n'
         '  "glossary": [{"term": "<ศัพท์>", "meaning": "<ความหมาย>"}],\n'
         '  "visual_gap": <true ถ้าบางขั้นตอนน่าจะเป็นภาพล้วน>\n'
         "}\n\n"
+        "หมายเหตุ: แต่ละบรรทัดของถอดเสียงขึ้นต้นด้วย [วินาทีs] "
+        "ให้ใส่ t_sec ของแต่ละ step เป็นวินาทีของบรรทัดที่ตรงกับขั้นตอนนั้น\n\n"
         f"ถอดเสียง (ที่มา: {transcript_source}):\n{transcript_text}"
     )
 
@@ -75,7 +86,7 @@ def summarize(meta, transcript, harvested_at, manual_category=None,
         from llm_client import default_complete
         complete = default_complete
 
-    text = transcript.text
+    text = _render_transcript(transcript)
     if len(text) > config.SUMMARIZE_CHUNK_CHARS:
         text = _map_reduce_text(text, complete)
 

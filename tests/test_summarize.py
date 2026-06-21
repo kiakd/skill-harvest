@@ -80,6 +80,23 @@ def test_invalid_json_retries_then_raises():
     assert calls["n"] >= 2  # retried at least once
 
 
+def test_timestamps_are_sent_to_the_llm_for_step_t_sec():
+    seen = {}
+
+    def capture(prompt):
+        seen["prompt"] = prompt
+        return GOOD_JSON
+
+    t = Transcript(text="ignored joined text",
+                   segments=[Segment("block the key poses", 42),
+                             Segment("add a smear frame", 132)],
+                   source="caption")
+    summarize.summarize(make_meta(), t, harvested_at="2026-06-21", complete=capture)
+    # the model must SEE the seconds, otherwise it can never fill step t_sec
+    assert "[42s]" in seen["prompt"]
+    assert "[132s]" in seen["prompt"]
+
+
 def test_long_transcript_triggers_map_reduce(monkeypatch):
     monkeypatch.setattr(summarize.config, "SUMMARIZE_CHUNK_CHARS", 20)
     long_text = "word " * 50  # 250 chars -> multiple chunks
