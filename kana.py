@@ -108,11 +108,16 @@ def build_cards(harvested_at):
 
 
 def main():
+    import sys
     import store
+    for stream in (sys.stdout, sys.stderr):  # avoid cp1252 crash on Windows console
+        rc = getattr(stream, "reconfigure", None)
+        if rc and getattr(stream, "encoding", "").lower() != "utf-8":
+            rc(encoding="utf-8")
     today = datetime.date.today().isoformat()
     for card in build_cards(harvested_at=today):
         store.write_card(card)
-        print(f"✓ {card.id}  ({len(card.flashcards)} cards)")
+        print(f"OK {card.id}  ({len(card.flashcards)} cards)")
     store.regenerate_cards_data()
     store.ensure_gallery()
     print("regenerated gallery")
