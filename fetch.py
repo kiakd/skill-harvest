@@ -51,6 +51,8 @@ def parse_vtt(vtt_text):
                 text_lines.append(lines[i].strip())
                 i += 1
             text = " ".join(text_lines).strip()
+            text = re.sub(r"<[^>]+>", "", text)          # strip inline VTT/HTML tags
+            text = re.sub(r"\s+", " ", text).strip()     # collapse whitespace
             if text:
                 segments.append(Segment(text=text, t_sec=t_sec))
         else:
@@ -79,7 +81,7 @@ def fetch_video_meta(url, runner=None):
         # Print the subtitle to stdout as VTT without downloading the video.
         vtt = runner([
             "yt-dlp", "--skip-download", "--write-auto-sub", "--write-sub",
-            "--sub-lang", lang, "--sub-format", "vtt", "-o", "-", url,
+            "--sub-lang", lang, "--sub-format", "vtt", "-o", "subtitle:-", url,
         ])
         segs = parse_vtt(vtt)
         if segs:

@@ -49,3 +49,15 @@ def test_fetch_video_meta_uses_runner(monkeypatch):
     m = fetch.fetch_video_meta("https://youtu.be/abc123", runner=fake_runner)
     assert m.video_id == "abc123"
     assert m.caption_text is None  # no captions in sample
+
+
+def test_parse_vtt_strips_inline_tags():
+    vtt = (
+        "WEBVTT\n\n"
+        "00:00:05.000 --> 00:00:07.000\n"
+        "<00:00:05.120><c> hello</c><00:00:06.000><c> world</c>\n"
+    )
+    segs = fetch.parse_vtt(vtt)
+    assert len(segs) == 1
+    assert segs[0].text == "hello world"
+    assert "<" not in segs[0].text
