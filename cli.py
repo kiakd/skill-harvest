@@ -38,11 +38,16 @@ def run_pipeline(url, manual_category, harvested_at,
     return card
 
 
+def _force_utf8_streams():
+    """Ensure Thai output/errors don't crash on a Windows cp1252 console."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure and getattr(stream, "encoding", "").lower() != "utf-8":
+            reconfigure(encoding="utf-8")
+
+
 def main(argv=None):
-    # Ensure UTF-8 output on Windows
-    import sys
-    if sys.stdout.encoding != 'utf-8':
-        sys.stdout.reconfigure(encoding='utf-8')
+    _force_utf8_streams()
 
     parser = argparse.ArgumentParser(prog="harvest", description="สรุปทูตอเรียล YouTube เป็นการ์ดความรู้")
     parser.add_argument("url", help="ลิงก์ YouTube")
