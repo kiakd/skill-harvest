@@ -37,3 +37,9 @@ def test_gallery_supports_flashcards_and_step_detail():
     assert "flipped" in html
     # tutorial step detail collapsible
     assert "อธิบายเพิ่ม" in html
+
+
+def test_gallery_uses_category_labels_for_chips():
+    html = open(GALLERY, encoding="utf-8").read()
+    # chips show human labels (window.CATEGORY_LABELS) instead of raw ids
+    assert "CATEGORY_LABELS" in html

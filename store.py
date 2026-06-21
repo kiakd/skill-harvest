@@ -28,11 +28,18 @@ def _load_all_cards():
 
 
 def regenerate_cards_data():
-    """Rebuild cards-data.js (window.CARDS = [...]) from all card JSON files."""
+    """Rebuild cards-data.js from all card JSON files.
+
+    Embeds both `window.CARDS` and `window.CATEGORY_LABELS` (id -> human label
+    from config) so the gallery can show "Pixel Art" instead of "pixel-art".
+    """
     cards = _load_all_cards()
     payload = json.dumps(cards, ensure_ascii=False, indent=2)
+    labels = {c["id"]: c["label"] for c in config.CATEGORIES}
+    labels_json = json.dumps(labels, ensure_ascii=False)
     with open(config.CARDS_DATA_JS, "w", encoding="utf-8") as f:
         f.write(f"window.CARDS = {payload};\n")
+        f.write(f"window.CATEGORY_LABELS = {labels_json};\n")
     return config.CARDS_DATA_JS
 
 

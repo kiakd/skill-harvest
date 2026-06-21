@@ -89,11 +89,13 @@
     items.forEach(function (it) { mk(it.label, it.value); });
   }
 
+  var CATEGORY_LABELS = window.CATEGORY_LABELS || {};
+
   function categoryCounts() {
     var counts = {};
     CARDS.forEach(function (c) { counts[c.category] = (counts[c.category] || 0) + 1; });
     return Object.keys(counts).map(function (k) {
-      return { value: k, label: k + " (" + counts[k] + ")" };
+      return { value: k, label: (CATEGORY_LABELS[k] || k) + " (" + counts[k] + ")" };
     });
   }
 
@@ -156,7 +158,7 @@
 
   function cardHtml(c) {
     var kind = c.kind || "tutorial";
-    var stepsHtml = stepsHtmlFor(c);
+    var stepsHtml = kind === "flashcards" ? "" : stepsHtmlFor(c);
     var tagsHtml = (c.tags || []).map(function (t) {
       return '<span class="tag">#' + escapeHtml(t) + "</span>";
     }).join("");
