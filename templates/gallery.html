@@ -48,7 +48,8 @@
   .face.front { background:#11151c; align-items:center; text-align:center; }
   .face.front .jp { font-size:26px; }
   .face.front .reading { color:var(--muted); font-size:13px; margin-top:4px; }
-  .face.back { background:#161b24; transform:rotateY(180deg); font-size:12px; gap:2px; }
+  .face.back { background:#161b24; transform:rotateY(180deg); font-size:12px; gap:2px;
+               align-items:center; text-align:center; }
   .face.back .mean { color:var(--accent); margin-top:4px; }
   .face.back .ex { color:var(--muted); margin-top:4px; font-size:11px; }
   .speak { margin-top:6px; align-self:center; background:#222a36; color:var(--fg);
@@ -132,19 +133,33 @@
     return base + (t != null ? "?t=" + t : "");
   }
 
+  var _noVoiceWarned = false;
+
   function speak(text, ev) {
     // Pronounce Japanese via the browser's built-in TTS (offline, no files).
-    // Needs a Japanese voice installed on the OS, else it may be silent.
+    // Needs a Japanese voice installed on the OS, else it stays silent.
     if (ev) ev.stopPropagation();
     if (!window.speechSynthesis || !text) return;
-    var u = new SpeechSynthesisUtterance(text);
-    u.lang = "ja-JP";
     var ja = (window.speechSynthesis.getVoices() || []).filter(function (v) {
       return /^ja/i.test(v.lang);
     })[0];
+    if (!ja && !_noVoiceWarned) {
+      _noVoiceWarned = true;
+      alert("ยังไม่มีเสียงภาษาญี่ปุ่นในเครื่อง 🔇\n\n" +
+            "ลงเพิ่ม (ฟรี): Settings → Time & language → Language → Add language → 日本語 (Japanese)\n" +
+            "ตอนติดตั้งให้ติ๊ก Text-to-speech แล้วปิด-เปิดเบราว์เซอร์ใหม่");
+    }
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = "ja-JP";
     if (ja) u.voice = ja;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(u);
+  }
+
+  // Warm up the voice list (some browsers populate it asynchronously).
+  if (window.speechSynthesis) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = function () {};
   }
 
   function speakBtn(text) {
