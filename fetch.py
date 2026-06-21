@@ -3,6 +3,7 @@
 import json
 import re
 import subprocess
+import sys
 
 import config
 from models import VideoMeta, Segment
@@ -10,6 +11,12 @@ from models import VideoMeta, Segment
 _TIMESTAMP_RE = re.compile(
     r"(\d{2}):(\d{2}):(\d{2})[.,](\d{3})\s*-->\s*(\d{2}):(\d{2}):(\d{2})[.,](\d{3})"
 )
+
+
+def _ytdlp(*extra):
+    """Build a yt-dlp command via `python -m yt_dlp` (works even if the
+    yt-dlp console script isn't on PATH — common with pip --user on Windows)."""
+    return [sys.executable, "-m", "yt_dlp", *extra]
 
 
 def _default_runner(args):
@@ -73,18 +80,24 @@ def _pick_caption_lang(info):
 def fetch_video_meta(url, runner=None):
     """Fetch metadata (+ caption text/segments if available) for a YouTube URL."""
     runner = runner or _default_runner
-    info = json.loads(runner(["yt-dlp", "-J", "--no-warnings", url]))
+    info = json.loads(runner(_ytdlp("-J", "--no-warnings", url)))
     meta = parse_info(info, source_url=url)
 
     lang = _pick_caption_lang(info)
     if lang:
         # Print the subtitle to stdout as VTT without downloading the video.
-        vtt = runner([
-            "yt-dlp", "--skip-download", "--write-auto-sub", "--write-sub",
-            "--sub-lang", lang, "--sub-format", "vtt", "-o", "subtitle:-", url,
-        ])
-        segs = parse_vtt(vtt)
-        if segs:
-            meta.caption_segments = segs
-            meta.caption_text = " ".join(s.text for s in segs)
+        # A caption fetch can fail for many reasons (no real sub, YouTube needing
+        # a JS runtime, etc.) — never let that abort the run; fall through to
+        # Whisper by leaving caption_text empty.
+        try:
+            vtt = runner(_ytdlp(
+                "--skip-download", "--write-auto-sub", "--write-sub",
+                "--sub-lang", lang, "--sub-format", "vtt", "-o", "subtitle:-", url,
+            ))
+            segs = parse_vtt(vtt)
+            if segs:
+                meta.caption_segments = segs
+                meta.caption_text = " ".join(s.text for s in segs)
+        except Exception:
+            pass
     return meta

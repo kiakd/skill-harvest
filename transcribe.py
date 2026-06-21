@@ -43,8 +43,9 @@ def _default_whisper_fn(audio_path):
 
 def _default_audio_downloader(url, out_path):
     import subprocess
+    import sys
     result = subprocess.run(
-        ["yt-dlp", "-f", "bestaudio", "-x", "--audio-format", "mp3",
+        [sys.executable, "-m", "yt_dlp", "-f", "bestaudio", "-x", "--audio-format", "mp3",
          "-o", out_path, "--no-warnings", url],
         capture_output=True, text=True, encoding="utf-8",
     )
