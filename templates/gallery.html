@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>skill-harvest — คลังความรู้</title>
+<style>
+  :root { --bg:#0f1115; --card:#1a1e26; --fg:#e6e6e6; --muted:#8a93a6; --accent:#6ad08f; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font-family:-apple-system,Segoe UI,Roboto,sans-serif; }
+  header { position:sticky; top:0; background:var(--bg); padding:12px 14px 6px;
+           border-bottom:1px solid #2a2f3a; z-index:10; }
+  h1 { font-size:18px; margin:0 0 8px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0; }
+  .chip { padding:6px 12px; border-radius:999px; background:var(--card);
+          color:var(--fg); border:1px solid #2a2f3a; font-size:13px; cursor:pointer; }
+  .chip.active { background:var(--accent); color:#06210f; border-color:var(--accent); }
+  #search { width:100%; padding:9px 12px; border-radius:10px; border:1px solid #2a2f3a;
+            background:var(--card); color:var(--fg); font-size:14px; margin-top:4px; }
+  main { padding:12px 14px 40px; display:grid; gap:12px; }
+  .card { background:var(--card); border:1px solid #2a2f3a; border-radius:14px; padding:14px; }
+  .card .cat { display:inline-block; font-size:11px; color:var(--accent);
+               border:1px solid var(--accent); border-radius:999px; padding:1px 8px; }
+  .card h2 { font-size:16px; margin:8px 0 4px; }
+  .card .meta { color:var(--muted); font-size:12px; }
+  .card .summary { margin:8px 0; font-size:14px; line-height:1.5; }
+  .card .tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:6px; }
+  .card .tag { font-size:11px; color:var(--muted); background:#11151c;
+               border-radius:6px; padding:2px 7px; }
+  details { margin-top:8px; }
+  summary { cursor:pointer; color:var(--accent); font-size:13px; }
+  ol { margin:8px 0 0; padding-left:20px; }
+  ol li { margin:4px 0; font-size:14px; }
+  a.jump { color:var(--accent); text-decoration:none; font-size:12px; }
+  .empty { color:var(--muted); text-align:center; padding:40px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>คลังความรู้</h1>
+  <div id="category-chips" class="chips"></div>
+  <div id="tag-chips" class="chips"></div>
+  <input id="search" type="search" placeholder="ค้นหา..." autocomplete="off">
+</header>
+<main id="cards"></main>
+
+<script src="cards-data.js"></script>
+<script>
+(function () {
+  var CARDS = window.CARDS || [];
+  var state = { category: null, tag: null, q: "" };
+
+  function uniq(arr) { return Array.from(new Set(arr)); }
+
+  function fmtTime(s) {
+    var m = Math.floor(s / 60), ss = s % 60;
+    return m + ":" + (ss < 10 ? "0" : "") + ss;
+  }
+
+  function renderChips(el, items, active, onPick, allLabel) {
+    el.innerHTML = "";
+    var mk = function (label, value) {
+      var c = document.createElement("span");
+      c.className = "chip" + (active === value ? " active" : "");
+      c.textContent = label;
+      c.onclick = function () { onPick(active === value ? null : value); };
+      el.appendChild(c);
+    };
+    if (allLabel) mk(allLabel + " (" + CARDS.length + ")", null);
+    items.forEach(function (it) { mk(it.label, it.value); });
+  }
+
+  function categoryCounts() {
+    var counts = {};
+    CARDS.forEach(function (c) { counts[c.category] = (counts[c.category] || 0) + 1; });
+    return Object.keys(counts).map(function (k) {
+      return { value: k, label: k + " (" + counts[k] + ")" };
+    });
+  }
+
+  function visibleTags() {
+    var pool = CARDS.filter(function (c) {
+      return !state.category || c.category === state.category;
+    });
+    return uniq(pool.reduce(function (acc, c) {
+      return acc.concat(c.tags || []);
+    }, [])).map(function (t) { return { value: t, label: "#" + t }; });
+  }
+
+  function matches(c) {
+    if (state.category && c.category !== state.category) return false;
+    if (state.tag && (c.tags || []).indexOf(state.tag) === -1) return false;
+    if (state.q) {
+      var hay = (c.title + " " + c.summary + " " + (c.tags || []).join(" ")).toLowerCase();
+      if (hay.indexOf(state.q.toLowerCase()) === -1) return false;
+    }
+    return true;
+  }
+
+  function cardHtml(c) {
+    var stepsHtml = (c.steps || []).map(function (s) {
+      var jump = (typeof s.t_sec === "number")
+        ? ' <a class="jump" href="' + c.source_url + '?t=' + s.t_sec + '">@' + fmtTime(s.t_sec) + '</a>'
+        : "";
+      return "<li>" + escapeHtml(s.text) + jump + "</li>";
+    }).join("");
+    var tagsHtml = (c.tags || []).map(function (t) {
+      return '<span class="tag">#' + escapeHtml(t) + "</span>";
+    }).join("");
+    var gap = c.visual_gap
+      ? '<div class="meta">⚠ บางขั้นตอนอาจเป็นภาพล้วน (รอเฟส 2)</div>' : "";
+    return ''
+      + '<span class="cat">' + escapeHtml(c.category) + "</span>"
+      + "<h2>" + escapeHtml(c.title) + "</h2>"
+      + '<div class="meta">' + escapeHtml(c.channel) + " · " + fmtTime(c.duration_sec) + "</div>"
+      + '<div class="summary">' + escapeHtml(c.summary) + "</div>"
+      + (stepsHtml ? "<details><summary>ขั้นตอน</summary><ol>" + stepsHtml + "</ol></details>" : "")
+      + gap
+      + '<div class="tags">' + tagsHtml + "</div>";
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function render() {
+    renderChips(document.getElementById("category-chips"), categoryCounts(),
+      state.category, function (v) { state.category = v; state.tag = null; render(); }, "ทั้งหมด");
+    renderChips(document.getElementById("tag-chips"), visibleTags(),
+      state.tag, function (v) { state.tag = v; render(); }, null);
+
+    var host = document.getElementById("cards");
+    var shown = CARDS.filter(matches);
+    if (!shown.length) { host.innerHTML = '<div class="empty">ไม่พบการ์ด</div>'; return; }
+    host.innerHTML = "";
+    shown.forEach(function (c) {
+      var el = document.createElement("article");
+      el.className = "card";
+      el.innerHTML = cardHtml(c);
+      host.appendChild(el);
+    });
+  }
+
+  document.getElementById("search").addEventListener("input", function (e) {
+    state.q = e.target.value; render();
+  });
+  render();
+})();
+</script>
+</body>
+</html>
