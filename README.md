@@ -12,20 +12,28 @@ pip install -r requirements.txt
 
 ## ตั้งค่า LLM (OpenAI-compatible)
 
-ตั้ง env ตามปลายทางที่ใช้ (ดีฟอลต์ = LM Studio ในเครื่อง):
+ดีฟอลต์ = **Gemma 4 (E4B) ในเครื่องผ่าน Ollama** ตั้งค่าผ่านไฟล์ `.env` (ก็อปจาก `.env.example`)
+แอปโหลด `.env` ให้อัตโนมัติ และ `.env` ถูก gitignore ไว้ → ใส่ API key ได้ปลอดภัย ไม่หลุดขึ้น repo
 
 ```bash
-export SH_LLM_BASE_URL=http://localhost:1234/v1
-export SH_LLM_MODEL=local-model
-export SH_LLM_API_KEY=not-needed
+cp .env.example .env   # แล้วแก้ค่าใน .env
 ```
 
-Windows PowerShell:
+**ทางเลือก A — Gemma 4 ในเครื่อง (ฟรี, ออฟไลน์):**
+```bash
+ollama pull gemma4:e4b      # ดาวน์โหลด ~9.6GB (ต้อง Ollama 0.22+)
+# .env:
+#   SH_LLM_BASE_URL=http://localhost:11434/v1
+#   SH_LLM_MODEL=gemma4:e4b
+#   SH_LLM_API_KEY=ollama
+```
 
-```powershell
-$env:SH_LLM_BASE_URL = "http://localhost:1234/v1"
-$env:SH_LLM_MODEL = "local-model"
-$env:SH_LLM_API_KEY = "not-needed"
+**ทางเลือก B — DeepSeek (คลาวด์, ต้องมี key):**
+```bash
+# .env:
+#   SH_LLM_BASE_URL=https://api.deepseek.com/v1
+#   SH_LLM_MODEL=deepseek-chat
+#   SH_LLM_API_KEY=sk-...
 ```
 
 ## ใช้งาน

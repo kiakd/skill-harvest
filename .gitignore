@@ -1,0 +1,20 @@
+# Secrets — NEVER commit API keys
+.env
+*.local.ps1
+
+# Generated gallery output (regenerated from cards/*.json)
+cards-data.js
+gallery.html
+
+# Harvested cards — your personal library, not part of the tool
+cards/
+
+# Whisper transcript cache
+cache/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
