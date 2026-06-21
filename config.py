@@ -41,8 +41,10 @@ GALLERY_HTML = os.environ.get("SH_GALLERY_HTML", "gallery.html")
 # --- Transcription ---
 WHISPER_MODEL_SIZE = os.environ.get("SH_WHISPER_MODEL_SIZE", "medium")
 
-# --- Map-reduce threshold (characters of transcript before chunking) ---
-SUMMARIZE_CHUNK_CHARS = int(os.environ.get("SH_SUMMARIZE_CHUNK_CHARS", "8000"))
+# --- Map-reduce threshold (characters of transcript before chunking). Kept high
+# so typical tutorials summarize in one shot and keep step timestamps (t_sec);
+# only very long videos fall back to map-reduce (which loses precise t_sec). ---
+SUMMARIZE_CHUNK_CHARS = int(os.environ.get("SH_SUMMARIZE_CHUNK_CHARS", "40000"))
 
 # --- Caption language preference for yt-dlp ---
 CAPTION_LANGS = os.environ.get("SH_CAPTION_LANGS", "th,en").split(",")
