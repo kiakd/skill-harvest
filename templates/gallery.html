@@ -36,6 +36,21 @@
   a.jump:hover { text-decoration:underline; }
   a.title-link { color:var(--fg); text-decoration:none; }
   a.title-link:hover { color:var(--accent); text-decoration:underline; }
+  ol li details { margin-top:4px; }
+  ol li summary { font-size:12px; }
+  .flashcards { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin-top:8px; }
+  .flip { background:transparent; height:120px; cursor:pointer; perspective:800px; }
+  .flip-inner { position:relative; width:100%; height:100%; transition:transform .5s; transform-style:preserve-3d; }
+  .flip.flipped .flip-inner { transform:rotateY(180deg); }
+  .face { position:absolute; width:100%; height:100%; backface-visibility:hidden;
+          border:1px solid #2a2f3a; border-radius:10px; padding:8px; overflow:auto;
+          display:flex; flex-direction:column; justify-content:center; }
+  .face.front { background:#11151c; align-items:center; text-align:center; }
+  .face.front .jp { font-size:26px; }
+  .face.front .reading { color:var(--muted); font-size:13px; margin-top:4px; }
+  .face.back { background:#161b24; transform:rotateY(180deg); font-size:12px; gap:2px; }
+  .face.back .mean { color:var(--accent); margin-top:4px; }
+  .face.back .ex { color:var(--muted); margin-top:4px; font-size:11px; }
   .empty { color:var(--muted); text-align:center; padding:40px 0; }
 </style>
 </head>
@@ -74,11 +89,13 @@
     items.forEach(function (it) { mk(it.label, it.value); });
   }
 
+  var CATEGORY_LABELS = window.CATEGORY_LABELS || {};
+
   function categoryCounts() {
     var counts = {};
     CARDS.forEach(function (c) { counts[c.category] = (counts[c.category] || 0) + 1; });
     return Object.keys(counts).map(function (k) {
-      return { value: k, label: k + " (" + counts[k] + ")" };
+      return { value: k, label: (CATEGORY_LABELS[k] || k) + " (" + counts[k] + ")" };
     });
   }
 
@@ -109,13 +126,39 @@
     return base + (t != null ? "?t=" + t : "");
   }
 
-  function cardHtml(c) {
-    var stepsHtml = (c.steps || []).map(function (s) {
+  function flashcardsHtml(c) {
+    var cards = (c.flashcards || []).map(function (f) {
+      var backRows = "";
+      if (f.onyomi) backRows += "<div>On: " + escapeHtml(f.onyomi) + "</div>";
+      if (f.kunyomi) backRows += "<div>Kun: " + escapeHtml(f.kunyomi) + "</div>";
+      backRows += '<div class="mean">' + escapeHtml(f.meaning) + "</div>";
+      if (f.example) backRows += '<div class="ex">' + escapeHtml(f.example) + "</div>";
+      return ''
+        + '<div class="flip" onclick="this.classList.toggle(\'flipped\')">'
+        + '<div class="flip-inner">'
+        + '<div class="face front"><div class="jp">' + escapeHtml(f.front) + "</div>"
+        + '<div class="reading">' + escapeHtml(f.reading || "") + "</div></div>"
+        + '<div class="face back">' + backRows + "</div>"
+        + "</div></div>";
+    }).join("");
+    return cards ? '<div class="flashcards">' + cards + "</div>" : "";
+  }
+
+  function stepsHtmlFor(c) {
+    return (c.steps || []).map(function (s) {
       var jump = (typeof s.t_sec === "number")
         ? ' <a class="jump" href="' + videoUrlAt(c, s.t_sec) + '" target="_blank" rel="noopener">@' + fmtTime(s.t_sec) + '</a>'
         : "";
-      return "<li>" + escapeHtml(s.text) + jump + "</li>";
+      var detail = s.detail
+        ? "<details><summary>อธิบายเพิ่ม</summary><div>" + escapeHtml(s.detail) + "</div></details>"
+        : "";
+      return "<li>" + escapeHtml(s.text) + jump + detail + "</li>";
     }).join("");
+  }
+
+  function cardHtml(c) {
+    var kind = c.kind || "tutorial";
+    var stepsHtml = kind === "flashcards" ? "" : stepsHtmlFor(c);
     var tagsHtml = (c.tags || []).map(function (t) {
       return '<span class="tag">#' + escapeHtml(t) + "</span>";
     }).join("");
@@ -127,7 +170,9 @@
         + escapeHtml(c.title) + "</a></h2>"
       + '<div class="meta">' + escapeHtml(c.channel) + " · " + fmtTime(c.duration_sec) + "</div>"
       + '<div class="summary">' + escapeHtml(c.summary) + "</div>"
-      + (stepsHtml ? "<details><summary>ขั้นตอน</summary><ol>" + stepsHtml + "</ol></details>" : "")
+      + (kind === "flashcards"
+          ? flashcardsHtml(c)
+          : (stepsHtml ? "<details open><summary>ขั้นตอน</summary><ol>" + stepsHtml + "</ol></details>" : ""))
       + gap
       + '<div class="tags">' + tagsHtml + "</div>";
   }

@@ -26,3 +26,20 @@ def test_gallery_builds_timestamp_links_from_id_not_buggy_concat():
     # the old bug appended ?t= straight onto source_url (watch?v=...) -> double "?"
     assert "c.source_url + '?t='" not in html
     assert 'c.source_url + "?t="' not in html
+
+
+def test_gallery_supports_flashcards_and_step_detail():
+    html = open(GALLERY, encoding="utf-8").read()
+    # branches on kind, with a default for old cards
+    assert 'c.kind' in html
+    # flashcard flip support
+    assert "flip" in html
+    assert "flipped" in html
+    # tutorial step detail collapsible
+    assert "อธิบายเพิ่ม" in html
+
+
+def test_gallery_uses_category_labels_for_chips():
+    html = open(GALLERY, encoding="utf-8").read()
+    # chips show human labels (window.CATEGORY_LABELS) instead of raw ids
+    assert "CATEGORY_LABELS" in html

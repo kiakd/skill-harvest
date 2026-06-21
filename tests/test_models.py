@@ -37,3 +37,28 @@ def test_card_to_dict_has_all_schema_keys():
         assert key in d
     assert d["category"] == "pixel-art"
     assert d["category_source"] == "ai"
+
+
+def test_card_defaults_kind_tutorial_and_empty_flashcards():
+    card = Card(
+        id="yt_x", title="T", source_url="u", channel="C", duration_sec=1,
+        category="pixel-art", category_source="ai", tags=[], harvested_at="2026-06-21",
+        transcript_source="caption", summary="s", tools=[], steps=[], tips=[],
+        glossary=[],
+    )
+    assert card.kind == "tutorial"
+    assert card.flashcards == []
+    assert "kind" in card.to_dict()
+    assert "flashcards" in card.to_dict()
+
+
+def test_card_can_hold_flashcards():
+    card = Card(
+        id="yt_x", title="T", source_url="u", channel="C", duration_sec=1,
+        category="japanese", category_source="ai", tags=[], harvested_at="2026-06-21",
+        transcript_source="caption", summary="s", tools=[], steps=[], tips=[],
+        glossary=[], kind="flashcards",
+        flashcards=[{"front": "言葉", "reading": "ことば", "meaning": "คำพูด"}],
+    )
+    assert card.kind == "flashcards"
+    assert card.flashcards[0]["front"] == "言葉"

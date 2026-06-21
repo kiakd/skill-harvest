@@ -58,6 +58,14 @@ CATEGORIES = [
     {"id": "other", "label": "อื่น ๆ"},  # fallback — must always exist
 ]
 
+# Categories whose cards are flashcards (memorization) instead of tutorials.
+FLASHCARD_CATEGORIES = {"japanese"}
+
+
+def is_flashcard_category(cat_id):
+    """True if this category produces flip-flashcard cards (vs tutorial steps)."""
+    return cat_id in FLASHCARD_CATEGORIES
+
 
 def category_ids():
     """Set of valid category ids."""

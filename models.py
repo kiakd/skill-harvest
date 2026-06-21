@@ -47,6 +47,8 @@ class Card:
     tips: list
     glossary: list                  # [{"term","meaning"}]
     visual_gap: bool = False
+    kind: str = "tutorial"          # "tutorial" | "flashcards"
+    flashcards: list = field(default_factory=list)   # [{front,reading,onyomi?,kunyomi?,meaning,example?}]
 
     def to_dict(self):
         return asdict(self)

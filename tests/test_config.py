@@ -49,3 +49,13 @@ def test_load_dotenv_sets_missing_but_never_overrides(tmp_path, monkeypatch):
 
 def test_load_dotenv_missing_file_is_noop():
     config._load_dotenv("this-file-does-not-exist.env")  # must not raise
+
+
+def test_flashcard_categories_subset_of_categories():
+    assert config.FLASHCARD_CATEGORIES <= config.category_ids()
+
+
+def test_is_flashcard_category():
+    assert config.is_flashcard_category("japanese") is True
+    assert config.is_flashcard_category("pixel-art") is False
+    assert config.is_flashcard_category("other") is False
