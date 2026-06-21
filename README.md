@@ -7,8 +7,11 @@
 
 ```bash
 pip install -r requirements.txt
-# ต้องมี ffmpeg ในเครื่อง (ใช้ตอนถอดเสียงคลิปที่ไม่มี caption)
+# ffmpeg จำเป็นเฉพาะคลิปที่ "ไม่มี caption" (ต้องถอดเสียงด้วย Whisper) เท่านั้น
 ```
+
+คลิปที่มี caption (ส่วนใหญ่) ดึงผ่าน `youtube-transcript-api` ได้เลย **ไม่ต้องลง deno/ffmpeg**
+ถ้าไม่มี caption ค่อย fallback ไป Whisper (`faster-whisper` + ffmpeg)
 
 ## ตั้งค่า LLM (OpenAI-compatible)
 

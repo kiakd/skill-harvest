@@ -43,13 +43,34 @@ def test_parse_vtt_extracts_segments():
     assert segs[1].t_sec == 42  # 42.5 floored
 
 
-def test_fetch_video_meta_uses_runner(monkeypatch):
+def test_fetch_video_meta_uses_runner():
     def fake_runner(args):
         # yt-dlp -J ... -> stdout is the info json
         return json.dumps(SAMPLE_INFO)
-    m = fetch.fetch_video_meta("https://youtu.be/abc123", runner=fake_runner)
+    # inject an empty caption fetcher so the test never touches the network
+    m = fetch.fetch_video_meta("https://youtu.be/abc123", runner=fake_runner,
+                               caption_fetcher=lambda vid, langs: [])
     assert m.video_id == "abc123"
     assert m.caption_text is None  # no captions in sample
+
+
+def test_caption_fetcher_is_primary_and_skips_ytdlp():
+    from models import Segment
+    calls = {"runner": 0}
+
+    def runner(args):
+        calls["runner"] += 1
+        return json.dumps(SAMPLE_INFO)  # only the -J metadata call should happen
+
+    def caption_fetcher(video_id, langs):
+        assert video_id == "abc123"
+        return [Segment("hello from api", 7)]
+
+    m = fetch.fetch_video_meta("https://youtu.be/abc123", runner=runner,
+                               caption_fetcher=caption_fetcher)
+    assert m.caption_text == "hello from api"
+    assert m.caption_segments[0].t_sec == 7
+    assert calls["runner"] == 1  # no second (yt-dlp caption) call — api was enough
 
 
 def test_parse_vtt_strips_inline_tags():
@@ -72,9 +93,9 @@ def test_ytdlp_invoked_as_module_not_path_dependent():
     assert cmd[3:] == ["-J", "x"]
 
 
-def test_caption_fetch_failure_falls_back_to_no_caption():
-    # A caption fetch that errors must NOT abort the run — fetch returns meta
-    # with no caption so the pipeline can fall back to Whisper.
+def test_caption_failure_everywhere_falls_back_to_no_caption():
+    # api returns nothing AND the yt-dlp VTT fallback errors -> still no crash,
+    # meta has no caption so the pipeline falls back to Whisper.
     info = dict(SAMPLE_INFO)
     info["automatic_captions"] = {"en": [{"ext": "vtt"}]}
     calls = {"n": 0}
@@ -83,9 +104,10 @@ def test_caption_fetch_failure_falls_back_to_no_caption():
         calls["n"] += 1
         if calls["n"] == 1:
             return json.dumps(info)          # the -J metadata call succeeds
-        raise RuntimeError("subtitle fetch exploded")  # the caption call fails
+        raise RuntimeError("subtitle fetch exploded")  # the yt-dlp caption call fails
 
-    m = fetch.fetch_video_meta("https://youtu.be/abc123", runner=runner)
+    m = fetch.fetch_video_meta("https://youtu.be/abc123", runner=runner,
+                               caption_fetcher=lambda vid, langs: [])  # api: nothing
     assert m.video_id == "abc123"
     assert m.caption_text is None
-    assert calls["n"] == 2  # it did attempt the caption fetch
+    assert calls["n"] == 2  # it attempted the yt-dlp caption fallback too

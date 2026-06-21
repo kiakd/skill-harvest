@@ -77,27 +77,51 @@ def _pick_caption_lang(info):
     return None
 
 
-def fetch_video_meta(url, runner=None):
-    """Fetch metadata (+ caption text/segments if available) for a YouTube URL."""
+def _default_caption_fetcher(video_id, langs):
+    """Primary caption source: youtube-transcript-api (no JS runtime / deno needed).
+    Returns list[Segment], or [] on any failure (transcripts disabled, blocked,
+    none in the requested languages, etc.)."""
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+        fetched = YouTubeTranscriptApi().fetch(video_id, languages=list(langs))
+        return [Segment(text=sn.text.strip(), t_sec=int(sn.start))
+                for sn in fetched if sn.text.strip()]
+    except Exception:
+        return []
+
+
+def _captions_via_ytdlp(info, url, runner):
+    """Fallback caption source: yt-dlp subtitle -> VTT (needs a JS runtime for
+    YouTube). Returns list[Segment], or [] if unavailable/failed."""
+    lang = _pick_caption_lang(info)
+    if not lang:
+        return []
+    try:
+        vtt = runner(_ytdlp(
+            "--skip-download", "--write-auto-sub", "--write-sub",
+            "--sub-lang", lang, "--sub-format", "vtt", "-o", "subtitle:-", url,
+        ))
+        return parse_vtt(vtt)
+    except Exception:
+        return []
+
+
+def fetch_video_meta(url, runner=None, caption_fetcher=None):
+    """Fetch metadata (+ caption text/segments if available) for a YouTube URL.
+
+    Captions are tried via `caption_fetcher` (youtube-transcript-api) first, then
+    yt-dlp's VTT path. If both come up empty the card pipeline falls back to
+    Whisper. A caption failure never aborts the run.
+    """
     runner = runner or _default_runner
+    caption_fetcher = caption_fetcher or _default_caption_fetcher
     info = json.loads(runner(_ytdlp("-J", "--no-warnings", url)))
     meta = parse_info(info, source_url=url)
 
-    lang = _pick_caption_lang(info)
-    if lang:
-        # Print the subtitle to stdout as VTT without downloading the video.
-        # A caption fetch can fail for many reasons (no real sub, YouTube needing
-        # a JS runtime, etc.) — never let that abort the run; fall through to
-        # Whisper by leaving caption_text empty.
-        try:
-            vtt = runner(_ytdlp(
-                "--skip-download", "--write-auto-sub", "--write-sub",
-                "--sub-lang", lang, "--sub-format", "vtt", "-o", "subtitle:-", url,
-            ))
-            segs = parse_vtt(vtt)
-            if segs:
-                meta.caption_segments = segs
-                meta.caption_text = " ".join(s.text for s in segs)
-        except Exception:
-            pass
+    segs = caption_fetcher(meta.video_id, config.CAPTION_LANGS)
+    if not segs:
+        segs = _captions_via_ytdlp(info, url, runner)
+    if segs:
+        meta.caption_segments = segs
+        meta.caption_text = " ".join(s.text for s in segs)
     return meta
