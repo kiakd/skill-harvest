@@ -51,6 +51,9 @@
   .face.back { background:#161b24; transform:rotateY(180deg); font-size:12px; gap:2px; }
   .face.back .mean { color:var(--accent); margin-top:4px; }
   .face.back .ex { color:var(--muted); margin-top:4px; font-size:11px; }
+  .speak { margin-top:6px; align-self:center; background:#222a36; color:var(--fg);
+           border:1px solid #2a2f3a; border-radius:8px; font-size:14px; padding:2px 10px; cursor:pointer; }
+  .speak:hover { border-color:var(--accent); }
   .empty { color:var(--muted); text-align:center; padding:40px 0; }
 </style>
 </head>
@@ -119,11 +122,34 @@
   }
 
   function videoUrlAt(c, t) {
-    // Build a correct jump link from the video id (youtu.be/<id>?t=<sec>).
-    // Appending ?t= to a youtube.com/watch?v= URL would create a second "?".
-    var vid = String(c.id || "").replace(/^yt_/, "");
-    var base = vid ? "https://youtu.be/" + vid : (c.source_url || "");
+    // Build a correct jump link. Only YouTube-sourced cards (id "yt_<videoId>")
+    // get a youtu.be link; reference cards (e.g. kana) have no video -> "".
+    var id = String(c.id || "");
+    var base = "";
+    if (id.indexOf("yt_") === 0) base = "https://youtu.be/" + id.slice(3);
+    else if (c.source_url) base = c.source_url;
+    if (!base) return "";
     return base + (t != null ? "?t=" + t : "");
+  }
+
+  function speak(text, ev) {
+    // Pronounce Japanese via the browser's built-in TTS (offline, no files).
+    // Needs a Japanese voice installed on the OS, else it may be silent.
+    if (ev) ev.stopPropagation();
+    if (!window.speechSynthesis || !text) return;
+    var u = new SpeechSynthesisUtterance(text);
+    u.lang = "ja-JP";
+    var ja = (window.speechSynthesis.getVoices() || []).filter(function (v) {
+      return /^ja/i.test(v.lang);
+    })[0];
+    if (ja) u.voice = ja;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }
+
+  function speakBtn(text) {
+    return '<button class="speak" data-say="' + escapeHtml(text)
+      + '" onclick="speak(this.getAttribute(\'data-say\'), event)">🔊</button>';
   }
 
   function flashcardsHtml(c) {
@@ -137,8 +163,8 @@
         + '<div class="flip" onclick="this.classList.toggle(\'flipped\')">'
         + '<div class="flip-inner">'
         + '<div class="face front"><div class="jp">' + escapeHtml(f.front) + "</div>"
-        + '<div class="reading">' + escapeHtml(f.reading || "") + "</div></div>"
-        + '<div class="face back">' + backRows + "</div>"
+        + '<div class="reading">' + escapeHtml(f.reading || "") + "</div>" + speakBtn(f.front) + "</div>"
+        + '<div class="face back">' + backRows + speakBtn(f.front) + "</div>"
         + "</div></div>";
     }).join("");
     return cards ? '<div class="flashcards">' + cards + "</div>" : "";
@@ -164,10 +190,13 @@
     }).join("");
     var gap = c.visual_gap
       ? '<div class="meta">⚠ บางขั้นตอนอาจเป็นภาพล้วน (รอเฟส 2)</div>' : "";
+    var vurl = videoUrlAt(c, null);
+    var titleHtml = vurl
+      ? '<h2><a class="title-link" href="' + vurl + '" target="_blank" rel="noopener">' + escapeHtml(c.title) + "</a></h2>"
+      : "<h2>" + escapeHtml(c.title) + "</h2>";
     return ''
       + '<span class="cat">' + escapeHtml(c.category) + "</span>"
-      + '<h2><a class="title-link" href="' + videoUrlAt(c, null) + '" target="_blank" rel="noopener">'
-        + escapeHtml(c.title) + "</a></h2>"
+      + titleHtml
       + '<div class="meta">' + escapeHtml(c.channel) + " · " + fmtTime(c.duration_sec) + "</div>"
       + '<div class="summary">' + escapeHtml(c.summary) + "</div>"
       + (kind === "flashcards"
@@ -179,7 +208,8 @@
 
   function escapeHtml(s) {
     return String(s == null ? "" : s)
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
   }
 
   function render() {
