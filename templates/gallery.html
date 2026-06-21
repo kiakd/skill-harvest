@@ -163,8 +163,9 @@
   }
 
   function speakBtn(text) {
-    return '<button class="speak" data-say="' + escapeHtml(text)
-      + '" onclick="speak(this.getAttribute(\'data-say\'), event)">🔊</button>';
+    // No inline onclick — a delegated listener on #cards routes clicks (see below)
+    // so tapping 🔊 plays sound and never flips the card.
+    return '<button class="speak" data-say="' + escapeHtml(text) + '">🔊</button>';
   }
 
   function flashcardsHtml(c) {
@@ -175,7 +176,7 @@
       backRows += '<div class="mean">' + escapeHtml(f.meaning) + "</div>";
       if (f.example) backRows += '<div class="ex">' + escapeHtml(f.example) + "</div>";
       return ''
-        + '<div class="flip" onclick="this.classList.toggle(\'flipped\')">'
+        + '<div class="flip">'
         + '<div class="flip-inner">'
         + '<div class="face front"><div class="jp">' + escapeHtml(f.front) + "</div>"
         + '<div class="reading">' + escapeHtml(f.reading || "") + "</div>" + speakBtn(f.front) + "</div>"
@@ -248,6 +249,16 @@
   document.getElementById("search").addEventListener("input", function (e) {
     state.q = e.target.value; render();
   });
+
+  // One delegated handler: 🔊 button plays sound; clicking elsewhere on a
+  // flashcard flips it. Robust against inline-onclick / event quirks.
+  document.getElementById("cards").addEventListener("click", function (ev) {
+    var btn = ev.target.closest ? ev.target.closest(".speak") : null;
+    if (btn) { speak(btn.getAttribute("data-say")); return; }
+    var flip = ev.target.closest ? ev.target.closest(".flip") : null;
+    if (flip) flip.classList.toggle("flipped");
+  });
+
   render();
 })();
 </script>

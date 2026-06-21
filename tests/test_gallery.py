@@ -53,3 +53,8 @@ def test_gallery_has_audio_and_handles_non_video_cards():
     assert 'lang = "ja-JP"' in html
     # reference cards (id not starting yt_) must not get a youtu.be link
     assert 'id.indexOf("yt_") === 0' in html
+    # 🔊 must NOT flip the card — clicks are routed by one delegated handler,
+    # not by inline onclick (which had event-passing quirks).
+    assert 'getElementById("cards").addEventListener' in html
+    assert 'onclick="speak' not in html
+    assert "this.classList.toggle('flipped')" not in html
