@@ -1,0 +1,154 @@
+# skill-harvest — ดีไซน์
+
+> สรุปทูตอเรียล YouTube เป็น "การ์ดความรู้" ภาษาไทยแบบ interactive (HTML) เก็บสะสมเป็นคลังส่วนตัว
+> เน้นทูตอเรียลสายทักษะ เช่น pixel-art animation (Aseprite), การปั้น 3D ฯลฯ
+
+วันที่: 2026-06-21
+สถานะ: อนุมัติดีไซน์แล้ว — รอวางแผน implement
+
+---
+
+## 1. เป้าหมาย
+
+ใส่ลิงก์ YouTube → ได้การ์ดความรู้ที่สรุปด้วย AI:
+- เน้น **ความรู้ที่เอาไปใช้ทำได้จริง** (เครื่องมือ, ขั้นตอนเรียงลำดับ, ทริค/ค่าตัวเลข, ศัพท์เทคนิค) ไม่ใช่แค่ย่อความ
+- สะสมหลายคลิปเป็น **คลังที่ค้น/กรองได้**
+- อ่านบน **มือถือ** ได้สบาย (ผู้ใช้ทำงานบนมือถือเป็นหลัก)
+
+### Non-goals (เฟสนี้)
+- ไม่ทำ vision/แคปเฟรม (ยกไปเฟส 2)
+- ไม่ทำเว็บเซิร์ฟเวอร์/ฐานข้อมูล — เป็น CLI + ไฟล์ในโฟลเดอร์
+- ไม่รวมเข้ากับแอป `novel` — เป็นโปรเจกต์แยก
+
+---
+
+## 2. สแต็ก & สภาพแวดล้อม
+
+- **Python CLI** (เครื่องมือหลักของงานนี้อยู่ในระบบนิเวศ Python: `yt-dlp`, `faster-whisper`, `ffmpeg`)
+- รัน **ในเครื่องที่มี GPU** → ถอดเสียง Whisper ฟรี ไม่เสียค่า API
+- LLM ผ่าน **endpoint แบบ OpenAI-compatible** ตั้งค่าได้: LM Studio ในเครื่อง (ฟรี) / DeepSeek / OpenRouter
+- ผลลัพธ์ภาษาไทย
+
+---
+
+## 3. Pipeline
+
+```
+ลิงก์ YouTube
+   │
+   ▼
+[1] fetch        yt-dlp → metadata (title, channel, duration, chapters) + ลอง caption
+   │
+   ▼
+[2] transcript   มี caption? ใช้เลย : ดึงเสียง → faster-whisper → transcript + timestamp
+   │
+   ▼
+[3] summarize    LLM → JSON ตาม schema (เครื่องมือ/ขั้นตอน/ทริค/ศัพท์) + map-reduce ถ้ายาว
+   │
+   ▼
+[4] store        เขียน cards/<id>.json (ตัวจริง) + regenerate cards-data.js → gallery.html ใช้ได้
+```
+
+---
+
+## 4. โครงสร้างไฟล์
+
+```
+skill-harvest/
+  cli.py               # entrypoint: รับลิงก์/อาร์กิวเมนต์ ต่อท่อทั้งหมด
+  fetch.py             # yt-dlp wrapper → metadata + caption (ถ้ามี)
+  transcribe.py        # faster-whisper → transcript + timestamp
+  summarize.py         # เรียก LLM → โครงสร้าง JSON (validate ตาม schema)
+  store.py             # เขียน cards/*.json + regenerate cards-data.js
+  config.py            # endpoint, โมเดล, ภาษา, โฟลเดอร์เก็บ, Whisper model size
+  templates/
+    gallery.html       # หน้าแกลลารี (css/js ในตัว, โหลด cards-data.js)
+  cards/               # ผลลัพธ์: <id>.json ต่อคลิป (source of truth)
+  cards-data.js        # generated: window.CARDS = [...] (ฝังข้อมูลทุกการ์ด)
+  gallery.html         # generated/คัดลอกจาก template — เปิดอ่านคลัง
+  cache/               # transcript ที่ถอดแล้ว (กันถอดซ้ำเวลา re-run)
+  docs/specs/
+  requirements.txt
+  README.md
+```
+
+แต่ละโมดูลมีหน้าที่เดียว สื่อสารผ่าน data structure ชัดเจน เทสต์แยกได้:
+- `fetch.py` → คืน `VideoMeta` (+ caption ถ้ามี)
+- `transcribe.py` → คืน `Transcript` (segments + ข้อความรวม)
+- `summarize.py` → คืน `Card` (dict ตาม schema ข้อ 6)
+- `store.py` → เขียนไฟล์ + regenerate ข้อมูล gallery
+
+---
+
+## 5. รูปแบบ output (HTML/JSON)
+
+ตัดสินใจ: **JSON เป็น source of truth + หน้าแกลลารีเดียว**
+
+- `cards/<id>.json` = ข้อมูลโครงสร้างของแต่ละคลิป (แก้/รีเรนเดอร์ใหม่ได้ง่าย, machine-friendly)
+- `gallery.html` = หน้าเดียวแสดงทุกการ์ด: ค้น, กรองด้วย tag, ปุ่มพับ/กางขั้นตอน, ลิงก์กระโดดไปนาทีในคลิป (`youtu.be/<id>?t=<sec>`)
+
+### จุดเทคนิคสำคัญ — เปิดบนมือถือได้โดยไม่ต้องมีเซิร์ฟเวอร์
+เปิด `gallery.html` ผ่าน `file://` แล้วใช้ `fetch()` อ่าน `cards/*.json` จะถูกเบราว์เซอร์บล็อกด้วย CORS (โดยเฉพาะบนมือถือ)
+
+**วิธีแก้:** ตอน harvest ทุกครั้ง `store.py` จะ **ฝังข้อมูลการ์ดทั้งหมดเป็นไฟล์ `cards-data.js`** รูปแบบ `window.CARDS = [ ... ];` แล้ว `gallery.html` โหลดผ่าน `<script src="cards-data.js">` (ไม่ใช่ `fetch`) → เปิดไฟล์เดียวบนมือถือใช้ได้ทันที ออฟไลน์ได้ ไม่ต้องรันเซิร์ฟเวอร์
+
+`cards/*.json` ยังเป็น source of truth — `cards-data.js` เป็นแค่ผลรวมที่ regenerate จากมันได้เสมอ
+
+---
+
+## 6. Schema ของการ์ด (JSON)
+
+```jsonc
+{
+  "id": "yt_<videoId>",
+  "title": "Smooth Pixel Attack Animation (Aseprite)",
+  "source_url": "https://youtu.be/<videoId>",
+  "channel": "...",
+  "duration_sec": 754,
+  "tags": ["aseprite", "pixel-art", "animation"],
+  "harvested_at": "2026-06-21",
+  "transcript_source": "caption" | "whisper",
+  "summary": "เทคนิคทำแอนิเมชันโจมตีให้ลื่นด้วย smear frames ...",
+  "tools": ["Aseprite", "brush 1px", ...],
+  "steps": [
+    { "text": "ตั้ง keyframe ท่าเริ่ม–ท่าจบก่อน", "t_sec": 42 },
+    { "text": "แทรก smear frame 1–2 เฟรมระหว่างกลาง", "t_sec": 90 }
+  ],
+  "tips": ["อย่าใส่ smear เกิน 2 เฟรม จะดูเบลอ", ...],
+  "glossary": [{ "term": "smear frame", "meaning": "..." }],
+  "visual_gap": true   // ธง: บางขั้นตอนน่าจะเป็นภาพล้วน รอเฟส 2 เติม
+}
+```
+
+`t_sec` ใช้ทำลิงก์กระโดดไปนาทีในคลิป (มีเฉพาะเมื่อ transcript มี timestamp)
+
+---
+
+## 7. Error handling
+
+| กรณี | พฤติกรรม |
+|---|---|
+| ไม่มี caption + ถอดเสียงพัง | error ชัดเจน **ไม่สร้างการ์ดเปล่า** |
+| transcript ยาวเกิน context | แบ่ง chunk → สรุปทีละส่วน → รวม (map-reduce) |
+| LLM ตอบไม่ตรง schema | retry; ถ้ายังพัง validate แล้ว fail ชัด ไม่เขียนการ์ดเสีย |
+| คลิปที่ความรู้อยู่บนภาพล้วน | ตั้ง `visual_gap: true` + แสดงป้ายเตือนใน gallery (รอเฟส 2) |
+| re-run คลิปเดิม | ใช้ transcript จาก `cache/` ไม่ถอดซ้ำ |
+
+---
+
+## 8. Testing
+
+แต่ละโมดูลเทสต์อิสระ:
+- `fetch` / `transcribe` — mock subprocess (yt-dlp/whisper) ตรวจการ parse output
+- `summarize` — ใช้ transcript ตัวอย่างคงที่ + mock LLM client → ตรวจว่า map-reduce + validate schema ถูก
+- `store` — เทสต์ว่าเขียน `cards/*.json` ถูก และ regenerate `cards-data.js` (`window.CARDS=[...]`) ครบทุกการ์ด
+- `card render` — สโม๊คเทสต์ว่า gallery.html โหลด cards-data.js ได้ (อย่างน้อยตรวจ template มี `<script src>` ชี้ถูก)
+
+---
+
+## 9. การแบ่งเฟส
+
+**เฟส 1 (ทำก่อน):** ครบเส้น caption/Whisper → JSON → gallery ใช้งานจริงกับคลิปที่พูดเยอะ และเป็นโครงให้เฟส 2 ต่อยอด
+
+**เฟส 2 (ทีหลัง):** เพิ่ม `frames.py` แคปเฟรมเป็นระยะ (ffmpeg) → ส่ง vision model อ่านสิ่งบนจอ → เติม `steps`/`tools` ที่ขาด และเคลียร์ `visual_gap` เฉพาะคลิปสายภาพ
+```
