@@ -43,3 +43,13 @@ def test_gallery_uses_category_labels_for_chips():
     html = open(GALLERY, encoding="utf-8").read()
     # chips show human labels (window.CATEGORY_LABELS) instead of raw ids
     assert "CATEGORY_LABELS" in html
+
+
+def test_gallery_has_audio_and_handles_non_video_cards():
+    html = open(GALLERY, encoding="utf-8").read()
+    # 🔊 audio via browser TTS
+    assert "speechSynthesis" in html
+    assert "🔊" in html
+    assert 'lang = "ja-JP"' in html
+    # reference cards (id not starting yt_) must not get a youtu.be link
+    assert 'id.indexOf("yt_") === 0' in html
