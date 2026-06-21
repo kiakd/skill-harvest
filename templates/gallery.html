@@ -33,6 +33,9 @@
   ol { margin:8px 0 0; padding-left:20px; }
   ol li { margin:4px 0; font-size:14px; }
   a.jump { color:var(--accent); text-decoration:none; font-size:12px; }
+  a.jump:hover { text-decoration:underline; }
+  a.title-link { color:var(--fg); text-decoration:none; }
+  a.title-link:hover { color:var(--accent); text-decoration:underline; }
   .empty { color:var(--muted); text-align:center; padding:40px 0; }
 </style>
 </head>
@@ -98,10 +101,18 @@
     return true;
   }
 
+  function videoUrlAt(c, t) {
+    // Build a correct jump link from the video id (youtu.be/<id>?t=<sec>).
+    // Appending ?t= to a youtube.com/watch?v= URL would create a second "?".
+    var vid = String(c.id || "").replace(/^yt_/, "");
+    var base = vid ? "https://youtu.be/" + vid : (c.source_url || "");
+    return base + (t != null ? "?t=" + t : "");
+  }
+
   function cardHtml(c) {
     var stepsHtml = (c.steps || []).map(function (s) {
       var jump = (typeof s.t_sec === "number")
-        ? ' <a class="jump" href="' + c.source_url + '?t=' + s.t_sec + '">@' + fmtTime(s.t_sec) + '</a>'
+        ? ' <a class="jump" href="' + videoUrlAt(c, s.t_sec) + '" target="_blank" rel="noopener">@' + fmtTime(s.t_sec) + '</a>'
         : "";
       return "<li>" + escapeHtml(s.text) + jump + "</li>";
     }).join("");
@@ -112,7 +123,8 @@
       ? '<div class="meta">⚠ บางขั้นตอนอาจเป็นภาพล้วน (รอเฟส 2)</div>' : "";
     return ''
       + '<span class="cat">' + escapeHtml(c.category) + "</span>"
-      + "<h2>" + escapeHtml(c.title) + "</h2>"
+      + '<h2><a class="title-link" href="' + videoUrlAt(c, null) + '" target="_blank" rel="noopener">'
+        + escapeHtml(c.title) + "</a></h2>"
       + '<div class="meta">' + escapeHtml(c.channel) + " · " + fmtTime(c.duration_sec) + "</div>"
       + '<div class="summary">' + escapeHtml(c.summary) + "</div>"
       + (stepsHtml ? "<details><summary>ขั้นตอน</summary><ol>" + stepsHtml + "</ol></details>" : "")
